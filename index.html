@@ -1,231 +1,127 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Protected Demo Page</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0f172a;
-      color: #e5e7eb;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-    }
-    .container {
-      max-width: 600px;
-      width: 100%;
-      padding: 24px;
-    }
-    h1 {
-      margin-bottom: 12px;
-    }
-    label {
-      display: block;
-      margin-bottom: 4px;
-      font-size: 14px;
-    }
-    input {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 8px 10px;
-      border-radius: 6px;
-      border: 1px solid #374151;
-      background: #020617;
-      color: #e5e7eb;
-      margin-bottom: 10px;
-    }
-    button {
-      border: none;
-      border-radius: 999px;
-      padding: 8px 16px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      background: #3b82f6;
-      color: white;
-      transition: background 0.15s ease, transform 0.05s ease;
-    }
-    button:hover {
-      background: #2563eb;
-      transform: translateY(-1px);
-    }
-    button:active {
-      transform: translateY(0);
-    }
-    .status {
-      margin-top: 10px;
-      font-size: 13px;
-      color: #9ca3af;
-    }
-    .status.safe {
-      color: #4ade80;
-    }
-    .status.danger {
-      color: #f97373;
-    }
-    a.protected-link {
-      color: #60a5fa;
-      text-decoration: underline;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>SQL Injection URL Tester</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #111827;
+    color: #e5e7eb;
+    display: flex;
+    justify-content: center;
+    padding: 40px;
+  }
+  .box {
+    width: 100%;
+    max-width: 600px;
+    background: #1f2937;
+    padding: 20px;
+    border-radius: 10px;
+  }
+  input, textarea {
+    width: 100%;
+    padding: 12px;
+    background: #0f172a;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    color: white;
+  }
+  button {
+    margin-top: 12px;
+    padding: 10px 18px;
+    background: #3b82f6;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #2563eb;
+  }
+  pre {
+    background: #0f172a;
+    padding: 12px;
+    border-radius: 6px;
+    margin-top: 15px;
+    white-space: pre-wrap;
+  }
+</style>
 </head>
 <body>
-<div class="container">
-  <h1>SQL Injection Protected Demo</h1>
-  <p>This page uses your FastAPI API to check inputs for SQL injection <strong>before</strong> sending them.</p>
 
-  <!-- Example protected form -->
-  <form id="protectedForm" action="/login" method="POST">
-    <label for="username">Username</label>
-    <input id="username" name="username" type="text" autocomplete="off" />
+<div class="box">
+  <h1>SQL Injection Detector</h1>
 
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" autocomplete="off" />
+  <label>Text Box Test</label>
+  <textarea id="inputBox" rows="3" placeholder="Try: admin' OR 1=1 --"></textarea>
 
-    <button type="submit">Login</button>
-  </form>
+  <button onclick="sendManualTest()">Test Text</button>
 
-  <div id="formStatus" class="status"></div>
+  <hr style="margin: 20px 0; border-color:#374151" />
 
-  <hr style="margin: 20px 0; border-color:#1f2937;" />
+  <h2>URL-Based Test (auto)</h2>
+  <p>If you visit this page with <code>?q=value</code>, it will automatically test it.</p>
 
-  <!-- Example protected link -->
-  <p>
-    Protected link example:<br />
-    <a href="/search?term=admin' or 1=1--"
-       class="protected-link"
-       data-protect-link="true">
-      Click to search with suspicious term
-    </a>
-  </p>
-  <div id="linkStatus" class="status"></div>
+  <pre id="urlDetected">(waiting for URL param...)</pre>
+
+  <hr style="margin: 20px 0; border-color:#374151" />
+
+  <h2>Result</h2>
+  <pre id="resultBox">{}</pre>
 </div>
 
 <script>
-  // ==============================
-  // CONFIG: your FastAPI API base
-  // ==============================
-  const API_BASE_URL = "https://unavowably-equilibrious-merideth.ngrok-free.dev";
+  // Your API
+  const API = "https://unavowably-equilibrious-merideth.ngrok-free.dev/predict";
 
-  const form = document.getElementById("protectedForm");
-  const formStatus = document.getElementById("formStatus");
-  const linkStatus = document.getElementById("linkStatus");
-
-  function setStatus(el, text, type) {
-    el.textContent = text || "";
-    el.classList.remove("safe", "danger");
-    if (type) el.classList.add(type);
-  }
-
-  async function checkWithApi(text) {
-    // Call your /predict endpoint
-    const url = API_BASE_URL.replace(/\/+$/, "") + "/predict";
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: text })
-    });
-
-    const data = await res.json();
-    // Expect: { query, score, threshold, result }
-    return { ok: res.ok, status: res.status, data };
-  }
-
-  // ==============================
-  // Protect form submissions
-  // ==============================
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault(); // stop normal submit first
-
-    setStatus(formStatus, "Checking for SQL injection...", null);
-
-    const formData = new FormData(form);
-    const parts = [];
-    for (const [key, value] of formData.entries()) {
-      parts.push(`${key}=${value}`);
-    }
-    const combinedText = parts.join(" & ");
+  async function sendToAPI(value) {
+    const resultBox = document.getElementById("resultBox");
+    resultBox.textContent = "Checking...";
 
     try {
-      const { ok, status, data } = await checkWithApi(combinedText);
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: value })
+      });
 
-      if (!ok || !data || !data.result) {
-        setStatus(formStatus, `Error (${status}): ${data.detail || "Unknown error"}`, "danger");
-        return;
-      }
-
-      const isAttack = data.result.includes("Injection");
-
-      if (isAttack) {
-        setStatus(
-          formStatus,
-          `Blocked: SQL Injection Detected (score=${data.score?.toFixed?.(4) ?? "?"})`,
-          "danger"
-        );
-        alert("Your input looks like a SQL injection attack and has been blocked.");
-        // DO NOT submit
-      } else {
-        setStatus(
-          formStatus,
-          `Safe: allowed (score=${data.score?.toFixed?.(4) ?? "?"})`,
-          "safe"
-        );
-        // Now allow the real submit
-        form.submit();
-      }
+      const data = await res.json();
+      resultBox.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
-      console.error(err);
-      setStatus(formStatus, "Failed to contact detection API: " + err.message, "danger");
+      resultBox.textContent = "Error: " + err.message;
     }
-  });
+  }
 
-  // ==============================
-  // Protect link clicks
-  // Any <a data-protect-link="true"> will be checked.
-  // ==============================
-  document.addEventListener("click", async (e) => {
-    const link = e.target.closest("a[data-protect-link='true']");
-    if (!link) return;
-
-    e.preventDefault();
-
-    const href = link.getAttribute("href") || "";
-    setStatus(linkStatus, "Checking link for SQL injection...", null);
-
-    try {
-      const { ok, status, data } = await checkWithApi(href);
-      if (!ok || !data || !data.result) {
-        setStatus(linkStatus, `Error (${status}): ${data.detail || "Unknown error"}`, "danger");
-        return;
-      }
-
-      const isAttack = data.result.includes("Injection");
-
-      if (isAttack) {
-        setStatus(
-          linkStatus,
-          `Blocked link: SQL Injection Detected (score=${data.score?.toFixed?.(4) ?? "?"})`,
-          "danger"
-        );
-        alert("This link looks like a SQL injection attack and has been blocked.");
-      } else {
-        setStatus(
-          linkStatus,
-          `Allowed link (score=${data.score?.toFixed?.(4) ?? "?"})`,
-          "safe"
-        );
-        // If safe, proceed with navigation
-        window.location.href = href;
-      }
-    } catch (err) {
-      console.error(err);
-      setStatus(linkStatus, "Failed to contact detection API: " + err.message, "danger");
+  async function sendManualTest() {
+    const text = document.getElementById("inputBox").value.trim();
+    if (!text) {
+      document.getElementById("resultBox").textContent = "Please enter something.";
+      return;
     }
-  });
+    sendToAPI(text);
+  }
+
+  // ================================
+  // AUTO URL TESTING
+  // If URL contains ?q=...
+  // ================================
+  window.onload = function() {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+
+    const urlBox = document.getElementById("urlDetected");
+
+    if (q) {
+      urlBox.textContent = "Detected URL param: ?q=" + q + "\nTesting automatically...";
+      sendToAPI(q);
+    } else {
+      urlBox.textContent = "No ?q= parameter found in URL.";
+    }
+  };
 </script>
+
 </body>
 </html>
