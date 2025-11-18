@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SQL Injection Detector Tester</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 900px;
+      width: 100%;
+      padding: 24px;
+    }
+
+    h1, h2 {
+      color: #f9fafb;
+      margin-bottom: 8px;
+    }
+
+    p {
+      color: #9ca3af;
+      margin-top: 4px;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+
+    .card {
+      background: #020617;
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 18px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 6px;
+      color: #e5e7eb;
+    }
+
+    textarea, input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      background: #020617;
+      border: 1px solid #374151;
+      color: #e5e7eb;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 60px;
+      outline: none;
+    }
+
+    textarea:focus, input[type="text"]:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 1px rgba(59,130,246,0.4);
+    }
+
+    .btn-row {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #3b82f6;
+      color: white;
+      transition: background 0.15s ease, transform 0.05s ease;
+    }
+
+    button.secondary {
+      background: #4b5563;
+    }
+
+    button:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+    }
+
+    button.secondary:hover {
+      background: #6b7280;
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .status {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    .status.safe {
+      color: #4ade80;
+    }
+
+    .status.danger {
+      color: #f97373;
+    }
+
+    pre {
+      background: #020617;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      overflow-x: auto;
+      border: 1px solid #1f2937;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: #111827;
+      color: #9ca3af;
+      border: 1px solid #1f2937;
+      margin-bottom: 6px;
+    }
+
+    .tag.safe {
+      border-color: #16a34a;
+      color: #4ade80;
+    }
+
+    .tag.danger {
+      border-color: #dc2626;
+      color: #f87171;
+    }
+
+    .small {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>SQL Injection Detector Tester</h1>
+  <p class="small">
+    Deploy this file to Vercel as <code>index.html</code>.  
+    Your FastAPI detector must be reachable over <strong>HTTPS</strong>
+    (for example via <code>ngrok</code>, Railway, Render, etc.).
+  </p>
+
+  <div class="card">
+    <span class="tag">Config</span>
+    <label for="baseUrl">API Base URL</label>
+    <input
+      type="text"
+      id="baseUrl"
+      placeholder="e.g. https://abcd-1234.ngrok-free.app"
+    >
+    <p class="small">
+      If this page is loaded over <code>https://</code> (Vercel), the API URL must also be
+      <code>https://</code>. Browsers block calls from HTTPS pages to plain HTTP (like <code>http://localhost:8000</code>).
+    </p>
+  </div>
+
+  <!-- POST /predict tester -->
+  <div class="card">
+    <span class="tag">POST /predict</span>
+    <h2>Body-based Test</h2>
+    <p>Send input to the <code>/predict</code> endpoint to see how the model classifies it.</p>
+
+    <label for="queryInput">Query / Input Text</label>
+    <textarea id="queryInput" placeholder="Example: select * from users where user='tom'"></textarea>
+
+    <div class="btn-row">
+      <button id="btnSafeExample" type="button">Use Safe Example</button>
+      <button id="btnAttackExample" type="button" class="secondary">Use Injection Example</button>
+      <button id="btnSendPredict" type="button">Send to /predict</button>
+    </div>
+
+    <div id="predictStatus" class="status"></div>
+    <pre id="predictResult">{}</pre>
+  </div>
+
+  <!-- URL-based tester (middleware) -->
+  <div class="card">
+    <span class="tag">GET /?q=...</span>
+    <h2>URL-based Test (Middleware)</h2>
+    <p>
+      This sends a <code>GET</code> request with your text as a URL query parameter
+      <code>?q=...</code>. The FastAPI middleware should block obvious SQL injection patterns.
+    </p>
+
+    <label for="urlInput">Text to send in URL (q=...)</label>
+    <textarea id="urlInput" placeholder="Example: admin' or 1=1--"></textarea>
+
+    <div class="btn-row">
+      <button id="btnUrlSafeExample" type="button">Use Safe URL Example</button>
+      <button id="btnUrlAttackExample" type="button" class="secondary">Use Injection URL Example</button>
+      <button id="btnSendUrl" type="button">Send as URL param</button>
+    </div>
+
+    <div id="urlStatus" class="status"></div>
+    <pre id="urlResult">{}</pre>
+  </div>
+</div>
+
+<script>
+  const baseUrlInput = document.getElementById("baseUrl");
+
+  // Try to restore last-used API URL from localStorage
+  (function restoreBaseUrl() {
+    const saved = localStorage.getItem("sql_api_base_url");
+    if (saved) {
+      baseUrlInput.value = saved;
+    }
+  })();
+
+  function getBaseUrl() {
+    const raw = baseUrlInput.value.trim();
+    if (!raw) {
+      alert("Please enter your FastAPI base URL (e.g. https://abcd-1234.ngrok-free.app)");
+      throw new Error("Missing base URL");
+    }
+
+    // Warn if mixed content: HTTPS page → HTTP API
+    if (location.protocol === "https:" && raw.startsWith("http://")) {
+      alert(
+        "This page is loaded over HTTPS, but your API URL is HTTP.\n" +
+        "Browsers will block this as mixed content.\n\n" +
+        "Expose your FastAPI with HTTPS (e.g., ngrok / Railway) and use an https:// URL."
+      );
+      throw new Error("Mixed content");
+    }
+
+    // Save for next visit
+    localStorage.setItem("sql_api_base_url", raw);
+
+    return raw.replace(/\/+$/, "");
+  }
+
+  const queryInput = document.getElementById("queryInput");
+  const btnSafeExample = document.getElementById("btnSafeExample");
+  const btnAttackExample = document.getElementById("btnAttackExample");
+  const btnSendPredict = document.getElementById("btnSendPredict");
+  const predictStatus = document.getElementById("predictStatus");
+  const predictResult = document.getElementById("predictResult");
+
+  const urlInput = document.getElementById("urlInput");
+  const btnUrlSafeExample = document.getElementById("btnUrlSafeExample");
+  const btnUrlAttackExample = document.getElementById("btnUrlAttackExample");
+  const btnSendUrl = document.getElementById("btnSendUrl");
+  const urlStatus = document.getElementById("urlStatus");
+  const urlResult = document.getElementById("urlResult");
+
+  function setStatus(el, text, type) {
+    el.textContent = text || "";
+    el.classList.remove("safe", "danger");
+    if (type) el.classList.add(type);
+  }
+
+  // Example buttons
+  btnSafeExample.onclick = () => {
+    queryInput.value = "select * from users where user='tom'";
+  };
+  btnAttackExample.onclick = () => {
+    queryInput.value = "admin' OR '1'='1' --";
+  };
+
+  btnUrlSafeExample.onclick = () => {
+    urlInput.value = "hello_world";
+  };
+  btnUrlAttackExample.onclick = () => {
+    urlInput.value = "admin' or 1=1--";
+  };
+
+  // Send to POST /predict
+  btnSendPredict.onclick = async () => {
+    let base;
+    try {
+      base = getBaseUrl();
+    } catch {
+      return;
+    }
+    const url = base + "/predict";
+    const query = queryInput.value.trim();
+
+    setStatus(predictStatus, "Sending request...", null);
+    predictResult.textContent = "{}";
+
+    if (!query) {
+      setStatus(predictStatus, "Please enter some text.", "danger");
+      return;
+    }
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ query })
+      });
+
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { raw: text };
+      }
+
+      predictResult.textContent = JSON.stringify(json, null, 2);
+
+      if (res.status === 200 && json.result) {
+        const type = json.result.includes("Injection") ? "danger" : "safe";
+        const scoreStr = json.score != null ? json.score.toFixed(4) : "?";
+        setStatus(predictStatus, `Result: ${json.result} (score=${scoreStr})`, type);
+      } else if (!res.ok) {
+        setStatus(predictStatus, `Error ${res.status}: ${json.detail || "Unknown error"}`, "danger");
+      } else {
+        setStatus(predictStatus, "Received response.", null);
+      }
+    } catch (e) {
+      setStatus(predictStatus, "Request failed: " + e.message, "danger");
+    }
+  };
+
+  // Send as GET /?q=...
+  btnSendUrl.onclick = async () => {
+    let base;
+    try {
+      base = getBaseUrl();
+    } catch {
+      return;
+    }
+    const txt = urlInput.value.trim();
+
+    setStatus(urlStatus, "Sending request...", null);
+    urlResult.textContent = "{}";
+
+    if (!txt) {
+      setStatus(urlStatus, "Please enter some text.", "danger");
+      return;
+    }
+
+    const url = base + "/?q=" + encodeURIComponent(txt);
+
+    try {
+      const res = await fetch(url, { method: "GET" });
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { raw: text };
+      }
+
+      urlResult.textContent = JSON.stringify(json, null, 2);
+
+      if (res.status === 403 && json.detail && json.detail.includes("Blocked")) {
+        const scoreStr = json.score != null ? json.score.toFixed(4) : "?";
+        setStatus(urlStatus, `Blocked by middleware (score=${scoreStr})`, "danger");
+      } else if (res.ok) {
+        setStatus(urlStatus, `Allowed (HTTP ${res.status})`, "safe");
+      } else {
+        setStatus(urlStatus, `Error ${res.status}: ${json.detail || "Unknown error"}`, "danger");
+      }
+    } catch (e) {
+      setStatus(urlStatus, "Request failed: " + e.message, "danger");
+    }
+  };
+</script>
+</body>
+</html>
