@@ -6,62 +6,155 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
   body {
-    font-family: Arial, sans-serif;
-    background: #111827;
-    color: #e5e7eb;
+    font-family: "Inter", Arial, sans-serif;
+    background: linear-gradient(135deg, #1e1b4b, #0f172a, #1e3a8a);
+    background-size: 400% 400%;
+    animation: gradientMove 18s ease infinite;
+    min-height: 100vh;
+    padding: 25px;
     display: flex;
     justify-content: center;
-    padding: 40px;
   }
+
+  @keyframes gradientMove {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
   .box {
     width: 100%;
-    max-width: 700px;
-    background: #1f2937;
-    padding: 20px;
-    border-radius: 10px;
+    max-width: 780px;
+    padding: 25px;
+    border-radius: 20px;
+
+    /* Glass BG */
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+
+    /* Glow */
+    box-shadow: 0 0 25px rgba(0, 150, 255, 0.15);
   }
-  h1 { margin: 0 0 15px; }
-  pre {
-    background: #0f172a;
+
+  h1, h2 {
+    margin-bottom: 15px;
+    font-weight: 600;
+    color: #e7ecff;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
+  }
+
+  textarea {
+    width: 100%;
     padding: 12px;
-    border-radius: 6px;
-    margin-top: 15px;
+    min-height: 100px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    resize: vertical;
+  }
+
+  textarea:focus {
+    outline: none;
+    border-color: #60a5fa;
+    box-shadow: 0 0 10px rgba(96, 165, 250, 0.5);
+  }
+
+  button {
+    margin-top: 12px;
+    padding: 12px 22px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: #fff;
+    font-weight: 600;
+    transition: 0.25s;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+  }
+
+  button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+  }
+
+  pre {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 12px;
+    border-radius: 12px;
+    margin-top: 12px;
+    color: #cbd5e1;
     white-space: pre-wrap;
+    overflow-x: auto;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  hr {
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    margin: 25px 0;
+  }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    .box {
+      padding: 18px;
+    }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.2rem; }
   }
 </style>
 </head>
+
 <body>
 
 <div class="box">
-  <h1>Automatic SQL Injection Detector</h1>
-  <p>This page automatically analyzes the <strong>full URL you used to open this page</strong>.</p>
 
-  <h3>URL being analyzed:</h3>
+  <h1>SQL Injection Detector</h1>
+  <p>This page automatically analyzes the <strong>full URL</strong> and also lets you test your own input.</p>
+
+  <!-- AUTO SCAN -->
+  <h2>🔍 Auto URL Scan</h2>
+  <p><strong>Full URL being analyzed:</strong></p>
   <pre id="urlBox"></pre>
 
-  <h3>Detection Result:</h3>
-  <pre id="resultBox">Analyzing...</pre>
+  <p><strong>Auto Detection Result:</strong></p>
+  <pre id="autoResult">Analyzing...</pre>
+
+  <hr />
+
+  <!-- MANUAL INPUT -->
+  <h2>✏️ Manual Input Tester</h2>
+  <textarea id="inputBox" rows="3" placeholder="Try typing: admin' OR 1=1 --"></textarea>
+  <button onclick="runManual()">Test Input</button>
+  <pre id="manualResult">{}</pre>
+
 </div>
 
 <script>
-  // Your FastAPI SQL Injection detection API
   const API = "https://unavowably-equilibrious-merideth.ngrok-free.dev/predict";
 
-  // Get the FULL URL including path + query + hash
+  // Show full URL
   const fullUrl = window.location.href;
-
-  // Show it on screen
   document.getElementById("urlBox").textContent = fullUrl;
 
-  // Extract everything AFTER domain:
-  // https://site.com/some/path?abc=1#hash
-  // becomes:
-  // /some/path?abc=1#hash
-  const parts = window.location.pathname + window.location.search + window.location.hash;
+  // Scan only dynamic parts
+  const fullPath = window.location.pathname + window.location.search + window.location.hash;
 
-  async function analyze(text) {
-    const resultBox = document.getElementById("resultBox");
+  async function sendToAPI(text, outputElementId) {
+    const output = document.getElementById(outputElementId);
+    output.textContent = "Checking...";
 
     try {
       const res = await fetch(API, {
@@ -71,14 +164,24 @@
       });
 
       const data = await res.json();
-      resultBox.textContent = JSON.stringify(data, null, 2);
+      output.textContent = JSON.stringify(data, null, 2);
+
     } catch (err) {
-      resultBox.textContent = "Error contacting detection API: " + err.message;
+      output.textContent = "Error contacting API: " + err.message;
     }
   }
 
-  // RUN AUTOMATICALLY
-  analyze(parts);
+  // Auto scan on load
+  sendToAPI(fullPath, "autoResult");
+
+  function runManual() {
+    const value = document.getElementById("inputBox").value.trim();
+    if (!value) {
+      document.getElementById("manualResult").textContent = "Please type something.";
+      return;
+    }
+    sendToAPI(value, "manualResult");
+  }
 </script>
 
 </body>
